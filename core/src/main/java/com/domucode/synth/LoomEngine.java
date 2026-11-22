@@ -244,6 +244,7 @@ public final class LoomEngine extends SynthEngine {
         p-=Math.floor(p);v.phase[idx]=p;
         return p;
     }
+    private double advance(Voice v,int idx,double f,int ignored){return advance(v,idx,f);}
     private float phasor(Voice v,int idx,double f,int shape){
         double p=advance(v,idx,f);
         if(shape==0)return (float)Math.sin(2*Math.PI*p);

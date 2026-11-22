@@ -34,8 +34,8 @@ public abstract class SynthActivity extends Activity {
         view=new SynthView(this,runtime.engine,midi,isLoom(),new SynthView.PatchHandler(){
             @Override public void save(){SynthActivity.this.save();}
             @Override public void load(){SynthActivity.this.load(currentPatch);}
-            @Override public void next(){currentPatch=(currentPatch+1)%8;load(currentPatch);}
-            @Override public void previous(){currentPatch=(currentPatch+7)%8;load(currentPatch);}
+            @Override public void next(){currentPatch=(currentPatch+1)%8;SynthActivity.this.load(currentPatch);}
+            @Override public void previous(){currentPatch=(currentPatch+7)%8;SynthActivity.this.load(currentPatch);}
             @Override public int index(){return currentPatch;}
         });
         setContentView(view);

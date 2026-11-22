@@ -463,7 +463,7 @@ public final class LoomView extends View {
         return y;
     }
     private int noteForWhite(int k){
-        return (activeOctave+1)*12+WHITE[k%7]+(k/7)*12;
+        return (engine.activeOctave+1)*12+WHITE[k%7]+(k/7)*12;
     }
     private boolean held(int note){
         for(int i=0;i<activeKeys.size();i++)if(activeKeys.valueAt(i)==note)return true;
