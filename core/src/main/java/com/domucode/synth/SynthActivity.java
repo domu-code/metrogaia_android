@@ -26,7 +26,7 @@ public abstract class SynthActivity extends Activity {
             View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_FULLSCREEN|
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
-        runtime=SynthRuntime.get();
+        runtime=SynthRuntime.get(this);
         runtime.acquire();
         patches=getSharedPreferences("mobile-synth-patches",MODE_PRIVATE);
         midi=new AndroidMidi(this,runtime.engine);
