@@ -49,6 +49,7 @@ public class LoomActivity extends Activity {
             @Override public void next(){currentPatch=(currentPatch+1)%8;restorePatch(currentPatch);}
             @Override public void previous(){currentPatch=(currentPatch+7)%8;restorePatch(currentPatch);}
             @Override public int patch(){return currentPatch;}
+            @Override public void select(int index){currentPatch=Math.max(0,Math.min(7,index));restorePatch(currentPatch);}
             @Override public void loadWav(){chooseSample();}
             @Override public void loopsChanged(){saveLoops();}
             @Override public String status(){return status;}

@@ -263,7 +263,7 @@ public final class LoomEngine extends SynthEngine {
         switch(model){
             case 0:return .7f*phasor(v,1,hz,1)+.3f*phasor(v,2,hz*.5,3);
             case 1:return (float)Math.sin(2*Math.PI*(p+(t*.3)*Math.sin(2*Math.PI*p*2)));
-            case 2:case 3:case 4:return (float)Math.sin(2*Math.PI*p+3*t*Math.sin(2*Math.PI*advance(v,1,hz*(1+model),2)));
+            case 2:case 3:case 4:return (float)Math.sin(2*Math.PI*p+3*t*Math.sin(2*Math.PI*advance(v,1,hz*(1+model))));
             case 5:return (float)Math.sin(2*Math.PI*p*(1+Math.sin(2*Math.PI*advance(v,1,hz*.25,1))*h*2));
             case 6:return .4f*phasor(v,1,hz,1)+.3f*phasor(v,2,hz*2,2)+.3f*phasor(v,3,hz*4,0);
             case 7:return phasor(v,1,hz,3)*(m<.5f?1f:.5f);
