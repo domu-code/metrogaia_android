@@ -212,7 +212,10 @@ public final class LoomEngine extends SynthEngine {
         if(v==null){v=voices[0];for(Voice one:voices)if(one.stamp<v.stamp)v=one;}
         v.active=true;v.gate=true;v.note=note;v.velocity=velocity/127f;v.env=0;v.env2=0;
         v.low=0;v.band=0;v.age=0;v.airEnv=0;v.airLp=0;v.airDC=0;
-        v.stamp=++voiceSerial;v.samplePosition=sampleData==null?0:sampleData.length*values[P_SAMPLESTART];
+        v.stamp=++voiceSerial;
+        if(sampleData==null)v.samplePosition=0;
+        else if(values[11]>=.25f&&values[11]<.5f)v.samplePosition=(sampleData.length-2)*(1-values[P_SAMPLESTART]);
+        else v.samplePosition=(sampleData.length-2)*values[P_SAMPLESTART];
         v.sampleGrainPhase=0;v.ringPtr=v.airPtr=0;v.rand=randomSeed++;
         double hz=440*Math.pow(2,(note-69)/12.0);
         v.ringLength=Math.max(12,Math.min(v.ring.length-1,(int)(rate/hz)));
