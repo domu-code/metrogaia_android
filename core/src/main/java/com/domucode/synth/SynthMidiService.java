@@ -9,10 +9,10 @@ public final class SynthMidiService extends MidiDeviceService {
     private SynthRuntime runtime;
     private final MidiReceiver[] receivers={new MidiReceiver(){
         @Override public void onSend(byte[] bytes,int offset,int count,long timestamp)throws IOException{
-            AndroidMidi.accept(SynthRuntime.get().engine,bytes,offset,count);
+            AndroidMidi.accept(SynthRuntime.get(SynthMidiService.this).engine,bytes,offset,count);
         }
     }};
-    @Override public void onCreate(){super.onCreate();runtime=SynthRuntime.get();runtime.acquire();}
+    @Override public void onCreate(){super.onCreate();runtime=SynthRuntime.get(this);runtime.acquire();}
     @Override public MidiReceiver[] onGetInputPortReceivers(){return receivers;}
     @Override public void onDestroy(){if(runtime!=null)runtime.release();super.onDestroy();}
 }

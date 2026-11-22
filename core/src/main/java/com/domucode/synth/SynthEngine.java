@@ -3,7 +3,7 @@ package com.domucode.synth;
 /** Portable Java audio kernel. Experimental Android algorithms are not claimed
  * to replace MetroGaia's original Beads DSP or LOOM's source models.
  */
-public final class SynthEngine {
+public class SynthEngine {
     public static final int SLOTS=4, MAX_VOICES=12;
     public static final String[] WAVES={"SINE","SAW","TRI","PULSE","WAVE","DMG","FM","NOISE","RESO"};
     public final int[] waves={4,1,2,5};

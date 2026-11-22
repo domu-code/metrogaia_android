@@ -44,6 +44,8 @@ public final class AndroidMidi {
                 case 144:if(b==0)engine.noteOff(a);else engine.noteOn(a,b);break;
                 case 176:engine.cc(a,b);break;
                 case 224:engine.pitchBend(a+(b<<7));break;
+                case 208:if(engine instanceof LoomEngine)((LoomEngine)engine).pressure(a);break;
+                case 192:if(engine instanceof LoomEngine)((LoomEngine)engine).presetMobile(a%8);break;
                 default:break;
             }
         }

@@ -1,5 +1,6 @@
 package com.domucode.synth;
 
+import android.content.Context;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioManager;
@@ -15,13 +16,17 @@ public final class SynthRuntime {
     private AudioTrack track;
     private Thread thread;
     private int clients;
-    private SynthRuntime(){
+    private SynthRuntime(boolean loom){
         int suggested=AudioTrack.getNativeOutputSampleRate(AudioManager.STREAM_MUSIC);
         rate=suggested>=22050&&suggested<=192000?suggested:48000;
-        engine=new SynthEngine(rate);
+        engine=loom?new LoomEngine(rate):new SynthEngine(rate);
+    }
+    public static synchronized SynthRuntime get(Context context){
+        if(instance==null)instance=new SynthRuntime(context.getPackageName().equals("com.domucode.loom"));
+        return instance;
     }
     public static synchronized SynthRuntime get(){
-        if(instance==null)instance=new SynthRuntime();
+        if(instance==null)throw new IllegalStateException("SynthRuntime requires Android Context for initialization");
         return instance;
     }
     public synchronized void acquire(){
