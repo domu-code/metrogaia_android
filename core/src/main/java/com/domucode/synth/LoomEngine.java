@@ -319,15 +319,16 @@ public final class LoomEngine extends SynthEngine {
     private float genSample(Voice v,double hz){
         float[] sample=sampleData;
         if(sample==null||sample.length<2)return 0;
+        int sampleModel=Math.min(3,(int)(parameter(11,v)*4));
         double speed=hz/440*sampleRate/(double)rate;
         float grain=parameter(P_GRAIN,v);
         float index=v.samplePosition;
-        if(index>=sample.length-1){if(grain<=.05f)return 0;index=0;v.samplePosition=0;}
-        if(index<0)index=0;
+        if(index>=sample.length-1){if(grain<=.05f&&sampleModel<2)return 0;index=0;v.samplePosition=0;}
+        if(index<0){if(sampleModel==1)return 0;index=sample.length-2;v.samplePosition=index;}
         int i=(int)index;
         float x=sample[i]+(sample[Math.min(sample.length-1,i+1)]-sample[i])*(index-i);
-        v.samplePosition+=speed;
-        if(grain>.05f){
+        v.samplePosition+=sampleModel==1?-speed:speed;
+        if(grain>.05f||sampleModel==3){
             v.sampleGrainPhase+=(2+grain*30f)/rate;
             if(v.sampleGrainPhase>=1){
                 v.sampleGrainPhase-=1;
@@ -342,7 +343,7 @@ public final class LoomEngine extends SynthEngine {
         float source=(float)(2*p-1);
         float[] form1={800,500,330,470,570};
         float[] form2={1150,1700,2000,900,1200};
-        int vowel=Math.min(4,(int)(h*5));
+        int vowel=Math.min(4,(int)(clamp(h*.65f+parameter(12,v)*.35f)*5));
         double f1=form1[vowel],f2=form2[vowel];
         float a=(float)Math.sin(2*Math.PI*advance(v,13,f1,0));
         float b=(float)Math.sin(2*Math.PI*advance(v,14,f2,0));
@@ -352,7 +353,8 @@ public final class LoomEngine extends SynthEngine {
         float damp=parameter(P_RINGDAMP,v),bright=parameter(29,v);
         int a=v.ringPtr,b=(a+1)%v.ringLength;
         float y=v.ring[a];
-        float next=(v.ring[a]+v.ring[b])*.5f*(.9925f-damp*.025f);
+        float topology=parameter(13,v);
+        float next=(v.ring[a]*(.25f+topology*.6f)+v.ring[b]*(.75f-topology*.6f))*(.9925f-damp*.025f);
         v.ring[a]=next;
         v.ringPtr=b;
         if(v.gate&&v.age%Math.max(1,(int)(rate/(hz*2)))==0)
@@ -360,7 +362,7 @@ public final class LoomEngine extends SynthEngine {
         return y;
     }
     private float genHandpan(Voice v,double hz){
-        int material=Math.min(7,(int)(parameter(P_MATERIAL,v)*8));
+        int material=Math.min(7,(int)(clamp(parameter(P_MATERIAL,v)*.75f+parameter(14,v)*.25f)*8));
         float spread=parameter(30,v),hard=parameter(38,v);
         double[] base={1,2.01,2.99,4.02,5.18,6.2,7.4,8.5};
         float sum=0;
@@ -377,15 +379,17 @@ public final class LoomEngine extends SynthEngine {
     }
     private float genAir(Voice v,double hz){
         float pressure=parameter(P_BREATH,v),open=parameter(31,v),turb=parameter(39,v);
+        int airModel=Math.min(8,(int)(parameter(15,v)*9));
         float target=v.gate?pressure*(.7f+modWheel*.3f+aftertouch*.5f):0;
         v.airEnv+=(target-v.airEnv)*(v.gate?.0008f:.0004f);
         float returned=v.air[v.airPtr];
         v.airLp+=(returned-v.airLp)*(.1f+open*.55f);
         float breath=v.airEnv+noise(v)*turb*.025f;
-        float reed=(float)Math.tanh((breath-v.airLp)*(.8f+2*open));
+        float reed=airModel==2||airModel==3?(float)Math.sin((breath-v.airLp)*(3+3*open)):
+            (float)Math.tanh((breath-v.airLp)*(.8f+2*open));
         float output=(reed-v.airDC)*.68f;
         v.airDC+=(reed-v.airDC)*.002f;
-        v.air[v.airPtr]=(output+v.airLp*(.95f-.05f*turb))*(-1f);
+        v.air[v.airPtr]=(output+v.airLp*(.95f-.05f*turb))*(airModel==2||airModel==3||airModel==7?1f:-1f);
         if(++v.airPtr>=v.airLength)v.airPtr=0;
         return output;
     }
@@ -467,6 +471,11 @@ public final class LoomEngine extends SynthEngine {
             JSONArray stateArray=new JSONArray(),captured=new JSONArray();
             for(int q=0;q<4;q++){JSONArray row=new JSONArray();for(float x:states[q])row.put(x);stateArray.put(row);captured.put(stateCaptured[q]);}
             o.put("states",stateArray);o.put("captured",captured);o.put("stateA",stateA);o.put("stateB",stateB);o.put("stateMorph",stateMorph);
+            JSONArray noteLockList=new JSONArray();
+            for(int note=0;note<128;note++)for(int p=0;p<NUM;p++)if(locked[note*NUM+p]){
+                JSONArray lock=new JSONArray();lock.put(note);lock.put(p);lock.put(perNoteLocks[note*NUM+p]);noteLockList.put(lock);
+            }
+            o.put("noteLocks",noteLockList);
         }catch(Exception ignored){}
     }
     public synchronized void loadFrom(JSONObject o){
@@ -486,6 +495,11 @@ public final class LoomEngine extends SynthEngine {
             a=o.optJSONArray("captured");if(a!=null)for(int q=0;q<Math.min(4,a.length());q++)stateCaptured[q]=a.getBoolean(q);
             stateA=Math.max(0,Math.min(3,o.optInt("stateA",0)));stateB=Math.max(0,Math.min(3,o.optInt("stateB",1)));
             stateMorph=clamp((float)o.optDouble("stateMorph",0));
+            Arrays.fill(locked,false);
+            a=o.optJSONArray("noteLocks");if(a!=null)for(int i=0;i<a.length();i++){
+                JSONArray lock=a.getJSONArray(i);int note=lock.getInt(0),p=lock.getInt(1);
+                if(note>=0&&note<128&&p>=0&&p<NUM){locked[note*NUM+p]=true;perNoteLocks[note*NUM+p]=clamp((float)lock.getDouble(2));}
+            }
             a=o.optJSONArray("steps");if(a!=null)for(int i=0;i<Math.min(16,a.length());i++){
                 JSONObject s=a.getJSONObject(i);stepEnabled[i]=s.optBoolean("on");stepNotes[i]=s.optInt("note",60);
             }
@@ -501,6 +515,7 @@ public final class LoomEngine extends SynthEngine {
         float[] src={l1,l2,0,0,0,modWheel,pitchBend,xyX*2-1,xyY*2-1,0,randomValue,aftertouch};
         float velo=0,env=0,env2=0;
         for(Voice v:voices)if(v.active){velo=Math.max(velo,v.velocity);env=Math.max(env,v.env);env2=Math.max(env2,v.env2);}
+        src[0]*=values[P_LFODEPTH1];src[1]*=values[P_LFODEPTH2];
         src[2]=env2*2-1;src[3]=env*2-1;src[4]=velo*2-1;
         src[9]=(sequenceStep/7.5f)-1f;
         for(int i=0;i<ROUTES;i++){
@@ -512,6 +527,10 @@ public final class LoomEngine extends SynthEngine {
     private void sequencerTick(){
         long interval=(long)(rate*60.0/(55+values[P_TEMPO]*185)/4);
         if(interval<1)interval=1;
+        if(playingNote>=0&&frames-Math.max(stepClock,arpClock)>interval*(.12+values[P_ARPGATE]*.85)){
+            for(Voice v:voices)if(v.active&&v.note==playingNote)v.gate=false;
+            playingNote=-1;
+        }
         if(seqEnabled&&frames-stepClock>=interval){
             stepClock=frames;
             int index=sequenceStep;sequenceStep=(sequenceStep+1)%16;
