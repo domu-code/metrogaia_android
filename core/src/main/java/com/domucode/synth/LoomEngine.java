@@ -61,7 +61,8 @@ public final class LoomEngine extends SynthEngine {
     private final float[] delayL,delayR,revL,revR;
     private final int rate;
     private int delayPtr,revPtr,voicesActive,heldNote=-1,arpTick;
-    private long frames;
+    private long frames,voiceSerial;
+    private int sequenceStep;
     private float lfoPhase1,lfoPhase2,randomValue=0.25f,vu;
     private int randomSeed=0x4567a1b3;
     private int playingNote=-1;
@@ -85,6 +86,7 @@ public final class LoomEngine extends SynthEngine {
         public int bars=1;
         public boolean recording,playing,overdub,enabled=true;
         public int playIndex;
+        public long previousPhase=-1;
     }
     private static final class Voice {
         boolean active,gate;
@@ -210,7 +212,7 @@ public final class LoomEngine extends SynthEngine {
         if(v==null){v=voices[0];for(Voice one:voices)if(one.stamp<v.stamp)v=one;}
         v.active=true;v.gate=true;v.note=note;v.velocity=velocity/127f;v.env=0;v.env2=0;
         v.low=0;v.band=0;v.age=0;v.airEnv=0;v.airLp=0;v.airDC=0;
-        v.stamp=++frames;v.samplePosition=sampleData==null?0:sampleData.length*values[P_SAMPLESTART];
+        v.stamp=++voiceSerial;v.samplePosition=sampleData==null?0:sampleData.length*values[P_SAMPLESTART];
         v.sampleGrainPhase=0;v.ringPtr=v.airPtr=0;v.rand=randomSeed++;
         double hz=440*Math.pow(2,(note-69)/12.0);
         v.ringLength=Math.max(12,Math.min(v.ring.length-1,(int)(rate/hz)));
@@ -402,7 +404,7 @@ public final class LoomEngine extends SynthEngine {
         if(s.recording){
             s.recording=false;s.playing=!s.events.isEmpty();
             s.length=Math.max(rate/4,frames-s.start);
-            s.start=frames;s.playIndex=0;
+            s.start=frames;s.playIndex=0;s.previousPhase=-1;
             s.events.sort((a,b)->Long.compare(a.offset,b.offset));
         }else{
             s.events.clear();s.start=frames;s.recording=true;s.playing=false;s.playIndex=0;
@@ -411,7 +413,7 @@ public final class LoomEngine extends SynthEngine {
     public synchronized void togglePlay(){
         LoopSlot s=loops[activeBank][activeSlot];
         if(s.playing){s.playing=false;allNotesOff();}
-        else if(!s.events.isEmpty()){s.playing=true;s.start=frames;s.playIndex=0;}
+        else if(!s.events.isEmpty()){s.playing=true;s.start=frames;s.playIndex=0;s.previousPhase=-1;}
     }
     public synchronized void toggleOverdub(){
         LoopSlot s=loops[activeBank][activeSlot];
@@ -420,8 +422,33 @@ public final class LoomEngine extends SynthEngine {
     }
     public synchronized void clearLoop(){
         LoopSlot s=loops[activeBank][activeSlot];
-        s.events.clear();s.recording=false;s.playing=false;s.overdub=false;s.playIndex=0;
+        s.events.clear();s.recording=false;s.playing=false;s.overdub=false;s.playIndex=0;s.previousPhase=-1;
     }
+
+    // Four capture/morph states following the desktop LOOM STATES workflow.
+    public final float[][] states=new float[4][NUM];
+    public final boolean[] stateCaptured=new boolean[4];
+    public int activeState=0,stateA=0,stateB=1;
+    public float stateMorph=0;
+    public synchronized void captureState(int index){
+        if(index<0||index>=4)return;
+        System.arraycopy(values,0,states[index],0,NUM);
+        stateCaptured[index]=true;activeState=index;
+    }
+    public synchronized void recallState(int index){
+        if(index<0||index>=4||!stateCaptured[index])return;
+        System.arraycopy(states[index],0,values,0,NUM);activeState=index;
+    }
+    public synchronized void setStateMorph(float amount){
+        stateMorph=clamp(amount);
+        if(!stateCaptured[stateA]||!stateCaptured[stateB])return;
+        for(int i=0;i<NUM;i++){
+            boolean discrete=i>=8&&i<16;
+            values[i]=discrete?(stateMorph<.5f?states[stateA][i]:states[stateB][i]):
+                states[stateA][i]+(states[stateB][i]-states[stateA][i])*stateMorph;
+        }
+    }
+
     public synchronized void saveTo(JSONObject o){
         try{
             JSONArray val=new JSONArray();for(float x:values)val.put(x);o.put("values",val);
@@ -437,6 +464,9 @@ public final class LoomEngine extends SynthEngine {
                 JSONObject e=new JSONObject();e.put("on",stepEnabled[i]);e.put("note",stepNotes[i]);seq.put(e);
             }
             o.put("steps",seq);
+            JSONArray stateArray=new JSONArray(),captured=new JSONArray();
+            for(int q=0;q<4;q++){JSONArray row=new JSONArray();for(float x:states[q])row.put(x);stateArray.put(row);captured.put(stateCaptured[q]);}
+            o.put("states",stateArray);o.put("captured",captured);o.put("stateA",stateA);o.put("stateB",stateB);o.put("stateMorph",stateMorph);
         }catch(Exception ignored){}
     }
     public synchronized void loadFrom(JSONObject o){
@@ -450,6 +480,12 @@ public final class LoomEngine extends SynthEngine {
             a=o.optJSONArray("fxEnabled");if(a!=null)for(int i=0;i<Math.min(5,a.length());i++)fxEnabled[i]=a.getBoolean(i);
             a=o.optJSONArray("fxOrder");if(a!=null)for(int i=0;i<Math.min(5,a.length());i++)fxOrder[i]=a.getInt(i);
             arpEnabled=o.optBoolean("arp",false);seqEnabled=o.optBoolean("seq",false);
+            a=o.optJSONArray("states");if(a!=null)for(int q=0;q<Math.min(4,a.length());q++){
+                JSONArray row=a.getJSONArray(q);for(int j=0;j<Math.min(NUM,row.length());j++)states[q][j]=clamp((float)row.getDouble(j));
+            }
+            a=o.optJSONArray("captured");if(a!=null)for(int q=0;q<Math.min(4,a.length());q++)stateCaptured[q]=a.getBoolean(q);
+            stateA=Math.max(0,Math.min(3,o.optInt("stateA",0)));stateB=Math.max(0,Math.min(3,o.optInt("stateB",1)));
+            stateMorph=clamp((float)o.optDouble("stateMorph",0));
             a=o.optJSONArray("steps");if(a!=null)for(int i=0;i<Math.min(16,a.length());i++){
                 JSONObject s=a.getJSONObject(i);stepEnabled[i]=s.optBoolean("on");stepNotes[i]=s.optInt("note",60);
             }
@@ -466,7 +502,7 @@ public final class LoomEngine extends SynthEngine {
         float velo=0,env=0,env2=0;
         for(Voice v:voices)if(v.active){velo=Math.max(velo,v.velocity);env=Math.max(env,v.env);env2=Math.max(env2,v.env2);}
         src[2]=env2*2-1;src[3]=env*2-1;src[4]=velo*2-1;
-        src[9]=((stepClock%16)/8f)-1;
+        src[9]=(sequenceStep/7.5f)-1f;
         for(int i=0;i<ROUTES;i++){
             int s=routeSource[i],d=routeDest[i];
             if(s>=0&&s<src.length&&d>=0&&d<NUM)
@@ -478,7 +514,7 @@ public final class LoomEngine extends SynthEngine {
         if(interval<1)interval=1;
         if(seqEnabled&&frames-stepClock>=interval){
             stepClock=frames;
-            int index=(int)((frames/interval)%16);
+            int index=sequenceStep;sequenceStep=(sequenceStep+1)%16;
             if(playingNote>=0){for(Voice v:voices)if(v.active&&v.note==playingNote)v.gate=false;playingNote=-1;}
             if(stepEnabled[index]){playingNote=stepNotes[index];trigger(playingNote,100);}
         }
@@ -487,7 +523,7 @@ public final class LoomEngine extends SynthEngine {
             if(playingNote>=0){for(Voice v:voices)if(v.active&&v.note==playingNote)v.gate=false;playingNote=-1;}
             int first=heldNote;
             if(first<0)for(int n=0;n<128;n++)if(noteHeld[n]){first=n;break;}
-            if(first>=0){playingNote=first+12*(arpTick++%3);trigger(playingNote,sampleVelocity[first]);}
+            if(first>=0){playingNote=Math.min(127,first+12*(arpTick++%3));trigger(playingNote,sampleVelocity[first]);}
         }
     }
     private void playLoops(){
@@ -496,7 +532,8 @@ public final class LoomEngine extends SynthEngine {
             if(!slot.playing||slot.events.isEmpty()||slot.recording)continue;
             long t=(frames-slot.start)%Math.max(1,slot.length);
             if(t<0)continue;
-            if(t<256){slot.playIndex=0;}
+            if(slot.previousPhase>=0&&t<slot.previousPhase){slot.playIndex=0;}
+            slot.previousPhase=t;
             while(slot.playIndex<slot.events.size()&&slot.events.get(slot.playIndex).offset<=t){
                 LoopEvent e=slot.events.get(slot.playIndex++);
                 if((e.status&0xf0)==0x90&&e.b>0)trigger(e.a,e.b);
@@ -591,7 +628,7 @@ public final class LoomEngine extends SynthEngine {
                         revR[rj]=right*.15f+tailR*.85f+tailL*.08f;
                         left+=tailL*modulated[P_REVERB]*.7f;
                         right+=tailR*modulated[P_REVERB]*.7f;
-                        if(++revPtr>=revL.length*revR.length)revPtr=0;
+                        if(++revPtr>=Math.max(revL.length,revR.length))revPtr=0;
                         break;
                 }
             }
