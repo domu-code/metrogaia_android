@@ -37,7 +37,7 @@ public final class LoomView extends View {
         BORDER=Color.rgb(72,87,94),TEXT=Color.rgb(224,234,231),
         MUTED=Color.rgb(133,151,154),ACCENT=Color.rgb(254,176,72),
         CYAN=Color.rgb(85,215,207),WARN=Color.rgb(243,123,112);
-    private static final int KIND_BUTTON=0,KIND_PARAM=1,KIND_XY=2,KIND_KEY=3;
+    private static final int KIND_BUTTON=0,KIND_PARAM=1,KIND_XY=2,KIND_KEY=3,KIND_MORPH=4;
     private static final class Zone {
         final RectF box;
         final int kind,param;
@@ -423,6 +423,35 @@ public final class LoomView extends View {
         button(c,"LOAD",itemX,y,half,dp(56),false,host::load);
         button(c,"SAVE",itemX+half+dp(7),y,half,dp(56),true,host::save);
         y+=dp(75);
+        title(c,"LOOM STATES / FOUR SNAPSHOTS",itemX,y);y+=dp(30);
+        float stateW=(w-dp(18))/4f;
+        for(int i=0;i<4;i++){
+            final int index=i;
+            button(c,"STATE "+(i+1),itemX+i*(stateW+dp(6)),y,stateW,dp(48),
+                engine.activeState==i,()->{
+                    engine.activeState=index;
+                    info=engine.stateCaptured[index]?"STATE "+(index+1)+" READY":"STATE "+(index+1)+" EMPTY";
+                });
+        }
+        y+=dp(59);
+        button(c,"CAPTURE",itemX,y,half,dp(53),false,()->{
+            engine.captureState(engine.activeState);info="CAPTURED STATE "+(engine.activeState+1);
+        });
+        button(c,"RECALL",itemX+half+dp(7),y,half,dp(53),false,()->{
+            engine.recallState(engine.activeState);info="RECALLED STATE "+(engine.activeState+1);
+        });
+        y+=dp(66);
+        button(c,"A "+(engine.stateA+1),itemX,y,half,dp(48),false,()->engine.stateA=(engine.stateA+1)%4);
+        button(c,"B "+(engine.stateB+1),itemX+half+dp(7),y,half,dp(48),false,
+            ()->engine.stateB=(engine.stateB+1)%4);
+        y+=dp(60);
+        rect(c,PANEL,itemX,y,w,dp(56));
+        label(c,String.format(Locale.US,"STATE MORPH %03d",Math.round(engine.stateMorph*100)),
+            itemX+dp(10),y+dp(8),1.7f,CYAN);
+        rect(c,BORDER,itemX+dp(12),y+dp(38),w-dp(24),dp(7));
+        rect(c,ACCENT,itemX+dp(12),y+dp(38),(w-dp(24))*engine.stateMorph,dp(7));
+        zones.add(new Zone(new RectF(itemX,y,itemX+w,y+dp(56)),KIND_MORPH,-1,null));
+        y+=dp(75);
         title(c,"PATCH INCLUDES",itemX,y);y+=dp(30);
         String[] details={"8 ENGINES AND PARAMETERS","MOD MATRIX AND MIDI CC MAPS",
             "FX STATES AND SIGNAL ORDER","ARP / STEPPER SETTINGS",
@@ -611,6 +640,7 @@ public final class LoomView extends View {
                         updateParam(dragging,x,true);
                 }
                 if(dragging!=null&&dragging.kind==KIND_XY)updateXY(x,y,dragging.box);
+                if(dragging!=null&&dragging.kind==KIND_MORPH)engine.setStateMorph((x-dragging.box.left)/dragging.box.width());
             }
             invalidate();return true;
         }
@@ -627,6 +657,8 @@ public final class LoomView extends View {
                     if(mode==NORMAL||mode==FINE||mode==LOCK)updateParam(dragging,x,false);
                 }else if(dragging!=null&&dragging.kind==KIND_XY){
                     updateXY(x,y,dragging.box);
+                }else if(dragging!=null&&dragging.kind==KIND_MORPH){
+                    engine.setStateMorph((x-dragging.box.left)/dragging.box.width());
                 }else if(dragging==null&&y>bodyTop&&y<bodyBottom){
                     scroll=Math.max(0,Math.min(Math.max(0,contentHeight-(bodyBottom-bodyTop)),scroll-(y-lastY)));
                 }
