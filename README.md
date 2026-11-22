@@ -1,43 +1,72 @@
-# MetroGaia + LOOM Android | first playable foundation
+# MetroGaia + LOOM Android
 
-This repository builds **two independently installable Android applications**:
+Two independent Android APKs built by GitHub Actions from one shared native Java/Android foundation.
 
-- MetroGaia Android (`com.domucode.metrogaia`)
-- LOOM Android (`com.domucode.loom`)
+**Important: LOOM is now a feature-rich Android adaptation, not a complete sound-identical migration of desktop LOOM M7.5.4.** The underlying synthesizer source algorithms were reviewed and the feature families reimplemented for Android. The specialised mobile models must not be mistaken for the entire original Processing desktop DSP. See [PORT_STATUS.md](PORT_STATUS.md).
 
-Both use Android's native AudioTrack/MIDI APIs and a responsive touchscreen layout with real PocketTracker R15 **5x5 bitmap glyph patterns** (source: `PocketTracker3/native/ui/font5x5.h`).
+## Install
 
-## Get the APKs
+Open [GitHub Actions](https://github.com/domu-code/metrogaia_android/actions/workflows/android-apk.yml), select the newest **successful** build, and download the `LOOM-Android-APK` artifact. Extract its ZIP and install the `loom-debug.apk` file.
 
-Go to [Android build runs](https://github.com/domu-code/metrogaia_android/actions/workflows/android-apk.yml), open the latest **successful** run, and download the `MetroGaia-Android-APK` or `LOOM-Android-APK` artifact ZIP. Extract the APK and install it on Android 8+.
+Requires Android 8.0+ (API 26). APK is debug-signed for sideloading. `MetroGaia-Android-APK` is maintained separately, without LOOM's advanced UI and engine additions.
 
-Build locally with JDK 17, Android SDK platform 35, and Gradle 8.9:
+## LOOM Android expanded prototype
 
-`gradle :metro:assembleDebug :loom:assembleDebug`
+Eight concurrently mixable source families, each with source level, selected model, harmonic/timbre/morph controls:
+- Plaits-inspired family, 24 selected variations
+- Braids-inspired family, 48 model variations grouped into eight mobile algorithms
+- DMG, four pulse/triangle/noise modes
+- WAV sampler, with PCM16 or float32 mono/stereo import, reverse/loop/retrigger, grain-style scanning
+- Procedural speech/formant synthesis
+- Karplus-inspired resonant Rings
+- Eight-material modal Handpan
+- Wind/reed Air/Bore delay-line model
 
-These are Android debug-signed APKs for sideloading, not Play Store releases.
+More features:
+- Responsive ten-page touch editor, one-column phones and two-column tablets, portrait/landscape resizing, multi-touch piano keyboard with octave controls
+- Exact PocketTracker 3 R15 5×5 bitmap glyph patterns, source-rendered throughout
+- 24-slot modulation matrix: LFO 1/2, amp/mod envelopes, velocity, mod wheel, pitch bend, XY axes, step, random and aftertouch sources
+- MIDI learn for UI parameter destinations; MIDI mappings persist with local patches
+- Four LOOM STATES snapshot slots, capture/recall, A/B selection and morph fader
+- Per-note parameter locks and local patch storage
+- Five reorderable effects: drive, bitcrush, chorus, delay and reverb
+- Arpeggiator, 16-step note sequencer and live performance input
+- Eight banks of eight MIDI recording loop slots, record, playback, overdub and save/load of loop banks
+- Native Android USB and virtual MIDI input, channel pressure, pitch bend and useful conventional CC defaults
+- Local eight-slot patch memory; new Android patch format, *not* yet desktop .json cartridge compatibility
 
-## Playable prototype features
+### Touch equivalents of desktop controls
 
-- Stereo native audio synthesis through AudioTrack, using the device's output sample rate
-- 12 voices and four independently switchable oscillator slots (sine, saw, triangle, pulse, wavetable-like, DMG-like, FM, noise, and resonant **prototype** algorithms)
-- Oscillator mix levels and semitone-cent detuning, lowpass filtering, ADSR, drive, stereo echo
-- Scaled/auto-rearranging touchscreen controls and a multitouch piano keyboard
-- Native Android MIDI device discovery, including compatible USB MIDI and virtual device connections
-- Android MIDI IN service discoverable to other apps; note on/off, pitch bend, sustain, CC 1/7/71/72/73/74/91
-- Eight patch slots per app, saved privately on the device
+| Desktop action | LOOM Android equivalent |
+|---|---|
+| Ctrl-click a parameter, choose a modulation source | Tap **MOD**, tap parameter, choose source; edit signed depth in MOD page |
+| MIDI learn/CC assignment | Tap **LEARN**, tap parameter, send a CC from controller |
+| Shift-drag precision | Tap **FINE** then drag the parameter |
+| Double-click reset | Long-press parameter → **RESET** |
+| Alt-click clear note lock | Tap **LOCK**, play/select note, long-press parameter → **CLEAR LOCK** |
+| Parameter contextual menu | Long-press parameter |
+| XY mouse movement | Touch the XY page pad |
+| Keyboard octave | MIX page, **OCT -** and **OCT +** |
+| Patch save/load | PATCH page |
+| Looper keys/shortcuts | LOOPS page pads and transport controls |
 
-## Important limitations and project integrity
+**MOD**, **LEARN**, **FINE**, and **LOCK** are persistent, clearly highlighted edit modes. **EDIT** resumes normal operation.
 
-**This is the first port foundation, not feature parity with the desktop synthesizers.** The full original Processing versions, MetroGaia **v7.2.2** and LOOM **M7.5.4**, use components that aren't directly Android-compatible (desktop JavaSound, Beads, ControlP5, TheMidiBus, desktop windowing). This build does not yet migrate the desktop synthesis engine implementations, sampling/granular DSP, full Plaits/Braids/Rings/AIR/BORE models, patch-bank formats, original effects, modulation matrix, sequencers or XY recorders. The prototype wave/model names do not assert compatibility or DSP equivalence with those models.
+## Building
 
-The original source archives were inspected separately and are **not** included in this repository. They must be brought into a later DSP port with licensing and reference-audio validation. The PocketTracker font is stored here as glyph-bit arrays rather than an unlicensed font binary. The 5x5 patterns are derived from the user's existing PocketTracker R15 source.
+Requires JDK 17, Android SDK 35, Gradle 8.9. GitHub builds and uploads both debug-signed APKs automatically:
 
-Keep the app foregrounded during live performance. Background playback, native-device hotplug auto-reconnect, sample file import, preset transfer, MIDI learn, Bluetooth-specific latency testing, and signed release packaging are future work.
+```sh
+gradle --no-daemon :metro:assembleDebug :loom:assembleDebug
+```
 
-## Android modules
+Source modules:
+- `core/`: native AudioTrack synths, MIDI adapters, UI, font and rendering layers
+- `loom/`: LOOM app
+- `metro/`: original basic MetroGaia Android prototype
 
-- `core/`: pure Java synth DSP, native audio renderer, Android MIDI bridge, MIDI service, PocketTracker bitmap font, responsive Canvas UI.
-- `metro/`: MetroGaia application identity and patch defaults.
-- `loom/`: LOOM application identity and patch defaults.
-- `.github/workflows/android-apk.yml`: CI builds both APKs, downloadable as run artifacts.
+## Honest limitations
+
+This is **not** LOOM M7.5.4's complete DSP in Android packaging. Detailed Plaits/Braids algorithms, source Beads grains and reverb, allophone sample assets, full Rings/Handpan/AIR fidelity, 256-bar/free looper quantization, Frames/Branches, original WAV wavetable import, desktop cartridge compatibility and full MIDI router still require additional engineering. The sampler currently loads WAV from storage, not the phone microphone. New Android patch/loop formats are different from desktop LOOM patch files.
+
+Physical-device stability, touch hit targets on every device, USB MIDI hardware compatibility, latency, battery use, and full sustained-load performance remain **unverified until device testing**.
