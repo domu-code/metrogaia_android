@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<devices xmlns:android="http://schemas.android.com/apk/res/android">
+  <device manufacturer="domu-code" product="Mobile Synth" name="Android Synth MIDI" private="false">
+    <input-port name="MIDI IN"/>
+  </device>
+</devices>
