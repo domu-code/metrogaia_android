@@ -37,7 +37,7 @@ public final class LoomView extends View {
         BORDER=Color.rgb(72,87,94),TEXT=Color.rgb(224,234,231),
         MUTED=Color.rgb(133,151,154),ACCENT=Color.rgb(254,176,72),
         CYAN=Color.rgb(85,215,207),WARN=Color.rgb(243,123,112);
-    private static final int KIND_BUTTON=0,KIND_PARAM=1,KIND_XY=2,KIND_KEY=3,KIND_MORPH=4;
+    private static final int KIND_BUTTON=0,KIND_PARAM=1,KIND_XY=2,KIND_KEY=3,KIND_MORPH=4,KIND_MOD_DEPTH=5;
     private static final class Zone {
         final RectF box;
         final int kind,param;
@@ -222,7 +222,11 @@ public final class LoomView extends View {
         title(c,"MASTER OUTPUT",itemX,y);y+=dp(28);
         paramGrid(c,new int[]{LoomEngine.P_MASTER,LoomEngine.P_FILTER,LoomEngine.P_REVERB,LoomEngine.P_DELAY},y,dp(58));
         y=nextRow(4,y,dp(65))+dp(10);
-        label(c,"TOUCH ENGINE PAGE FOR MODELS",itemX,y,1.7f,MUTED);y+=dp(32);
+        label(c,"TOUCH ENGINE PAGE FOR MODELS",itemX,y,1.7f,MUTED);y+=dp(39);
+        float w=getWidth()-dp(18),half=(w-dp(7))*.5f;
+        button(c,"OCT -",itemX,y,half,dp(50),false,()->engine.activeOctave=Math.max(0,engine.activeOctave-1));
+        button(c,"OCT +",itemX+half+dp(7),y,half,dp(50),false,()->engine.activeOctave=Math.min(8,engine.activeOctave+1));
+        y+=dp(62);
         return y;
     }
     private float drawEngine(Canvas c,float y){
@@ -293,8 +297,7 @@ public final class LoomView extends View {
             String depth=String.format(Locale.US,"%+.2f",engine.routeDepth[selectedRoute]);
             label(c,"DEPTH "+depth,x+dp(11),y+dp(9),1.7f,TEXT);
             int routeIndex=selectedRoute;
-            zones.add(new Zone(new RectF(x,y,x+w,y+h),KIND_BUTTON,-1,
-                ()->{engine.routeDepth[routeIndex]=Math.max(-1,Math.min(1,engine.routeDepth[routeIndex]+.1f));}));
+            zones.add(new Zone(new RectF(x,y,x+w,y+h),KIND_MOD_DEPTH,routeIndex,null));
             y+=dp(70);
             button(c,"DEPTH -",itemX,y,(w-dp(7))*.5f,dp(48),false,()->engine.routeDepth[routeIndex]=Math.max(-1,engine.routeDepth[routeIndex]-.1f));
             button(c,"DEPTH +",itemX+(w+dp(7))*.5f,y,(w-dp(7))*.5f,dp(48),false,
@@ -568,6 +571,7 @@ public final class LoomView extends View {
         float overlayH=Math.min(bodyBottom-bodyTop,dp(282));
         float y=bodyBottom-overlayH;
         rect(c,BG,0,y,w,overlayH);
+        zones.add(new Zone(new RectF(0,y,w,bodyBottom),KIND_BUTTON,-1,()->{}));
         line(c,ACCENT,pad,y+dp(4),w-pad*2,overlayH-dp(7));
         label(c,"SOURCE FOR "+fit(LoomEngine.PARAM_NAMES[selectedDest],w-dp(150),1.5f),
             pad+dp(7),y+dp(14),1.5f,CYAN);
@@ -594,7 +598,7 @@ public final class LoomView extends View {
     }
     private void drawContext(Canvas c,float w){
         float pad=dp(10),overlayH=dp(220),y=bodyBottom-overlayH;
-        rect(c,BG,0,y,w,overlayH);line(c,CYAN,pad,y,w-2*pad,overlayH);
+        rect(c,BG,0,y,w,overlayH);zones.add(new Zone(new RectF(0,y,w,bodyBottom),KIND_BUTTON,-1,()->{}));line(c,CYAN,pad,y,w-2*pad,overlayH);
         label(c,fit(LoomEngine.PARAM_NAMES[contextParam],w-dp(20),1.6f),
             pad+dp(7),y+dp(14),1.6f,CYAN);
         float half=(w-dp(25))/2;
@@ -636,11 +640,10 @@ public final class LoomView extends View {
                 downTime=event.getEventTime();moved=false;
                 if(dragging!=null&&dragging.kind==KIND_PARAM){
                     dragStartValue=engine.getParam(dragging.param);
-                    if(mode==NORMAL||mode==FINE||mode==LOCK)
-                        updateParam(dragging,x,true);
                 }
                 if(dragging!=null&&dragging.kind==KIND_XY)updateXY(x,y,dragging.box);
                 if(dragging!=null&&dragging.kind==KIND_MORPH)engine.setStateMorph((x-dragging.box.left)/dragging.box.width());
+                if(dragging!=null&&dragging.kind==KIND_MOD_DEPTH)engine.routeDepth[dragging.param]=Math.max(-1,Math.min(1,(x-dragging.box.left)/dragging.box.width()*2-1));
             }
             invalidate();return true;
         }
@@ -659,6 +662,8 @@ public final class LoomView extends View {
                     updateXY(x,y,dragging.box);
                 }else if(dragging!=null&&dragging.kind==KIND_MORPH){
                     engine.setStateMorph((x-dragging.box.left)/dragging.box.width());
+                }else if(dragging!=null&&dragging.kind==KIND_MOD_DEPTH){
+                    engine.routeDepth[dragging.param]=Math.max(-1,Math.min(1,(x-dragging.box.left)/dragging.box.width()*2-1));
                 }else if(dragging==null&&y>bodyTop&&y<bodyBottom){
                     scroll=Math.max(0,Math.min(Math.max(0,contentHeight-(bodyBottom-bodyTop)),scroll-(y-lastY)));
                 }
@@ -672,7 +677,10 @@ public final class LoomView extends View {
                 boolean longPress=(event.getEventTime()-downTime)>550&&!moved;
                 if(dragging.kind==KIND_PARAM){
                     if(longPress)showAction(dragging.param);
-                    else if(!moved||mode==MOD||mode==LEARN)selectParam(dragging.param);
+                    else if(!moved||mode==MOD||mode==LEARN){
+                        if(mode==NORMAL)updateParam(dragging,x,false);
+                        selectParam(dragging.param);
+                    }
                 }else if(dragging.kind==KIND_BUTTON&&!moved&&dragging.box.contains(x,y)){
                     dragging.click.run();
                 }
